@@ -8,9 +8,13 @@ A few years ago I answered a Stackoverflow question ["Get Image size WITHOUT loa
 
 ## Am I rusty?
 
-Over the last 10 years I've used Python for everything. This saturday afternoon I wanted to answer the question: "at my age, can I still learn a new computer language?". So I decided to try rust and this is the result. It was a pleasant surprise, if you are familiar with C/C++ rust is really easy to pick up - and I see some Python influence here and there. 
+Over the last 10 years I've used Python for everything. This saturday afternoon I wanted to answer the question: "at my age, can I still learn a new computer language?". So I decided to try Rust and this is the result. It was a pleasant surprise, if you are familiar with C/C++ Rust is really easy to pick up - and I see some Python influence here and there. 
 
-I don't expect it to be very idiomatic rust, it is my first rust project so be kind!
+I don't expect it to be very idiomatic Rust, it is my first Rust project so be kind!
+
+## First impressions
+
+There are many things I like in Rust. I'm still looking for a good debugger, the one I was using with VSCode is unable to show the values in a HashMap, for example.
 
 ## Usage:
 
@@ -42,6 +46,7 @@ use imsz::imsz
 
 let info = imsz(fname);
 println!("{}: {}, {} x {}", fname, info.format, info.width, info.height);
+// tenor.gif: gif, 220 x 159
 ```
 
 
