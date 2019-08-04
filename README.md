@@ -12,3 +12,37 @@ Over the last 10 years I've used Python for everything. This saturday afternoon 
 
 I don't expect it to be very idiomatic rust, it is my first rust project so be kind!
 
+## Usage:
+
+There is a sample binary command:
+```
+> .\target\debug\imsz.exe  tenor.gif  
+tenor.gif: git, 220 x 159
+
+> .\target\debug\imsz.exe -h
+Usage:
+  C:\Users\paulos\work\imsz\target\debug\imsz.exe [OPTIONS] FILES [...]
+
+The imsz library gets image size from files, this is a demo application.
+
+Positional arguments:
+  files                 List of files to process
+
+Optional arguments:
+  -h,--help             Show this help message and exit
+  -v,--verbose          Be verbose
+  -V,--version          Display version and exits
+```
+
+The relevant parts:
+```rust
+use imsz::imsz
+
+...
+
+let info = imsz(fname);
+println!("{}: {}, {} x {}", fname, info.format, info.width, info.height);
+```
+
+
+  
