@@ -18,7 +18,7 @@ There are many things I like in Rust. I'm still looking for a good debugger, the
 
 ## Usage:
 
-There is a sample binary command:
+There is a simple example binary:
 ```
 > .\target\debug\imsz.exe  tenor.gif  
 tenor.gif: git, 220 x 159
