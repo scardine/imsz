@@ -26,6 +26,6 @@ fn main() {
 
     for fname in options.files.iter() {
         let info = imsz(fname);
-        println!("{}: {:?}", fname, info);
+        println!("{}: {}, {} x {}", fname, info.format, info.width, info.height);
     }
 }
