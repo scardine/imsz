@@ -1,6 +1,6 @@
 # imsz
 
-Get image width and height reading as few bytes as possible. 
+Get width and height from an image file reading as few bytes as possible. 
 
 ## Why?
 
