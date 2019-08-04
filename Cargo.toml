@@ -1,0 +1,18 @@
+[package]
+name = "imsz"
+version = "0.1.0"
+authors = ["Paulo Scardine <paulo@scardine.com.br>"]
+edition = "2018"
+
+[lib]
+name = "imsz"
+path = "src/lib.rs"
+
+[[bin]]
+name = "imsz"
+path = "src/bin/bin.rs"
+doc = false
+
+[dependencies]
+argparse = "0.2.2"
+structure = "0.1"
