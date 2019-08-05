@@ -1,3 +1,5 @@
+![bear](https://github.com/scardine/imsz/blob/master/tenor.gif?raw=true)
+
 # imsz
 
 Get width and height from an image file reading as few bytes as possible. 
