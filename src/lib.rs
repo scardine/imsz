@@ -5,8 +5,8 @@ use std::io::{Read, Seek, SeekFrom};
 
 #[derive(Debug, Clone)]
 pub struct ImInfo {
-    pub width:  i64,
-    pub height: i64,
+    pub width:  u64,
+    pub height: u64,
     pub format: &'static str,
 }
 
@@ -45,7 +45,7 @@ fn get_array<const LEN: usize>(slice: &[u8], format: &'static str) -> ImResult<[
 
 pub fn imsz(fname: &str) -> ImResult<ImInfo> {
     let mut file = File::open(fname)?;
-    let mut preamble = [0u8; 26];
+    let mut preamble = [0u8; 30];
 
     let size = file.read(&mut preamble)?;
 
@@ -106,9 +106,9 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
 
             return Ok(ImInfo {
                 format: "bmp",
-                width:  w.into(),
+                width:  w as u64,
                 // h is negative when stored upside down
-                height: h.abs().into()
+                height: h.abs() as u64
             });
         }
     } else if size >= 3 && &preamble[..2] == b"\xff\xd8" {
@@ -144,6 +144,94 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
             file.read_exact(&mut buf1).map_err(err_conv)?;
         }
         return Err(ImError::ParserError("jpeg"));
+    } else if preamble.starts_with(b"RIFF") && size >= 30 && &preamble[8..12] == b"WEBP" {
+        // WEBP
+        let hdr = &preamble[12..16];
+        if hdr == b"VP8L" {
+            let b0 = preamble[21];
+            let b1 = preamble[22];
+            let b2 = preamble[23];
+            let b3 = preamble[24];
+
+            let w = 1u32 + ((((b1 & 0x3F) as u32) << 8) | b0 as u32);
+            let h = 1u32 + ((((b3 & 0xF) as u32) << 10) | ((b2 as u32) << 2) | ((b1 & 0xC0) as u32 >> 6));
+
+            return Ok(ImInfo {
+                format: "webp",
+                width:  w as u64,
+                height: h as u64,
+            });
+        } else if hdr == b"VP8 " {
+            let b0 = preamble[23];
+            let b1 = preamble[24];
+            let b2 = preamble[25];
+            if b0 != 0x9d || b1 != 0x01 || b2 != 0x2a {
+                return Err(ImError::ParserError("webp"));
+            }
+            let w = u16::from_le_bytes(get_array(&preamble[26..], "webp")?);
+            let h = u16::from_le_bytes(get_array(&preamble[28..], "webp")?);
+            return Ok(ImInfo {
+                format: "webp",
+                width:  w as u64 & 0x3ffff,
+                height: h as u64 & 0x3ffff,
+            });
+        }
+        return Err(ImError::ParserError("webp"));
+    } else if preamble.starts_with(b"qoif") && size >= 14 {
+        // QOI
+        let w = u32::from_be_bytes(get_array(&preamble[4..], "qoi")?);
+        let h = u32::from_be_bytes(get_array(&preamble[8..], "qoi")?);
+
+        return Ok(ImInfo {
+            format: "qoi",
+            width:  w as u64,
+            height: h as u64,
+        });
+    } else if preamble.starts_with(b"8BPS\0\x01\0\0\0\0\0\0") && size >= 22 {
+        // PSD
+        let h = u32::from_be_bytes(get_array(&preamble[14..], "psd")?);
+        let w = u32::from_be_bytes(get_array(&preamble[18..], "psd")?);
+
+        return Ok(ImInfo {
+            format: "psd",
+            width:  w as u64,
+            height: h as u64,
+        });
+    } else if preamble.starts_with(b"gimp xcf ") && size >= 22 && preamble[13] == 0 {
+        // XCF
+        let w = u32::from_be_bytes(get_array(&preamble[14..], "psd")?);
+        let h = u32::from_be_bytes(get_array(&preamble[18..], "psd")?);
+
+        return Ok(ImInfo {
+            format: "xcf",
+            width:  w as u64,
+            height: h as u64,
+        });
+    } else if preamble.starts_with(b"\0\0\x01\0") && size >= 6 {
+        // ICO
+        let err_conv = |_| ImError::ParserError("ico");
+        let count = u16::from_le_bytes(get_array(&preamble[4..], "ico")?);
+        file.seek(SeekFrom::Start(6)).map_err(err_conv)?;
+
+        let mut buf = [0u8; 16];
+        let mut width:  u32 = 0;
+        let mut height: u32 = 0;
+        for _ in 0..count {
+            file.read_exact(&mut buf).map_err(err_conv)?;
+            let w = buf[0] as u32;
+            let h = buf[1] as u32;
+            if w >= width && h >= height {
+                width  = w;
+                height = h;
+            }
+        }
+
+        return Ok(ImInfo {
+            format: "ico",
+            width:  width  as u64,
+            height: height as u64,
+        });
     }
+    // TODO: AVIF and TIFF
     return Err(ImError::UnknownFormat);
 }
