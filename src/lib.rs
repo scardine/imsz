@@ -2,19 +2,52 @@ use std::convert::TryInto;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub enum ImFormat {
+    GIF,
+    PNG,
+    BMP,
+    JPEG,
+    WEBP,
+    QOI,
+    PSD,
+    XCF,
+    ICO,
+    // TODO: AVIF
+    // TODO: TIFF
+}
+
+impl std::fmt::Display for ImFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GIF  => "gif",
+            Self::PNG  => "png",
+            Self::BMP  => "bmp",
+            Self::JPEG => "jpeg",
+            Self::WEBP => "webp",
+            Self::QOI  => "qoi",
+            Self::PSD  => "psd",
+            Self::XCF  => "xcf",
+            Self::ICO  => "ico",
+            // TODO: Self::AVIF => "avif",
+            // TODO: Self::TIFF => "tiff",
+        }.fmt(f)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ImInfo {
     pub width:  u64,
     pub height: u64,
-    pub format: &'static str,
+    pub format: ImFormat,
 }
 
 #[derive(Debug)]
 pub enum ImError {
     IO(std::io::Error),
     UnknownFormat,
-    ParserError(&'static str)
+    ParserError(ImFormat)
 }
 
 impl std::fmt::Display for ImError {
@@ -36,7 +69,7 @@ impl From<std::io::Error> for ImError {
 pub type ImResult<T> = std::result::Result<T, ImError>;
 
 #[inline]
-fn get_array<const LEN: usize>(slice: &[u8], format: &'static str) -> ImResult<[u8; LEN]> {
+fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; LEN]> {
     match slice[..LEN].try_into() {
         Ok(array) => Ok(array),
         Err(_) => Err(ImError::ParserError(format)),
@@ -52,13 +85,13 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
     if size >= 6 && (&preamble[..6] == b"GIF87a" || &preamble[..6] == b"GIF89a") {
         // GIF
         if size < 10 {
-            return Err(ImError::ParserError("gif"));
+            return Err(ImError::ParserError(ImFormat::GIF));
         }
-        let w = u16::from_le_bytes(get_array(&preamble[6..], "gif")?);
-        let h = u16::from_le_bytes(get_array(&preamble[8..], "gif")?);
+        let w = u16::from_le_bytes(get_array(&preamble[6..], ImFormat::GIF)?);
+        let h = u16::from_le_bytes(get_array(&preamble[8..], ImFormat::GIF)?);
 
         return Ok(ImInfo {
-            format: "gif",
+            format: ImFormat::GIF,
             width:  w.into(),
             height: h.into()
         });
@@ -68,44 +101,44 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
         let h;
         if &preamble[12..16] == b"IHDR" {
             if size < 24 {
-                return Err(ImError::ParserError("png"));
+                return Err(ImError::ParserError(ImFormat::PNG));
             }
-            w = u32::from_be_bytes(get_array(&preamble[16..], "png")?);
-            h = u32::from_be_bytes(get_array(&preamble[20..], "png")?);
+            w = u32::from_be_bytes(get_array(&preamble[16..], ImFormat::PNG)?);
+            h = u32::from_be_bytes(get_array(&preamble[20..], ImFormat::PNG)?);
         } else {
-            w = u32::from_be_bytes(get_array(&preamble[ 8..], "png")?);
-            h = u32::from_be_bytes(get_array(&preamble[12..], "png")?);
+            w = u32::from_be_bytes(get_array(&preamble[ 8..], ImFormat::PNG)?);
+            h = u32::from_be_bytes(get_array(&preamble[12..], ImFormat::PNG)?);
         }
 
         return Ok(ImInfo {
-            format: "png",
+            format: ImFormat::PNG,
             width:  w.into(),
             height: h.into()
         });
     } else if size >= 10 && (&preamble[..2] == b"BM" && &preamble[6..10] == b"\0\0\0\0") {
         // BMP
         if size < 22 {
-            return Err(ImError::ParserError("bmp"));
+            return Err(ImError::ParserError(ImFormat::BMP));
         }
-        let header_size = u32::from_le_bytes(get_array(&preamble[14..], "bmp")?);
+        let header_size = u32::from_le_bytes(get_array(&preamble[14..], ImFormat::BMP)?);
         if header_size == 12 {
-            let w = u16::from_le_bytes(get_array(&preamble[18..], "bmp")?);
-            let h = u16::from_le_bytes(get_array(&preamble[20..], "bmp")?);
+            let w = u16::from_le_bytes(get_array(&preamble[18..], ImFormat::BMP)?);
+            let h = u16::from_le_bytes(get_array(&preamble[20..], ImFormat::BMP)?);
 
             return Ok(ImInfo {
-                format: "bmp",
+                format: ImFormat::BMP,
                 width:  w.into(),
                 height: h.into()
             });
         } else {
             if size < 24 {
-                return Err(ImError::ParserError("bmp"));
+                return Err(ImError::ParserError(ImFormat::BMP));
             }
-            let w = i32::from_le_bytes(get_array(&preamble[18..], "bmp")?);
-            let h = i32::from_le_bytes(get_array(&preamble[22..], "bmp")?);
+            let w = i32::from_le_bytes(get_array(&preamble[18..], ImFormat::BMP)?);
+            let h = i32::from_le_bytes(get_array(&preamble[22..], ImFormat::BMP)?);
 
             return Ok(ImInfo {
-                format: "bmp",
+                format: ImFormat::BMP,
                 width:  w as u64,
                 // h is negative when stored upside down
                 height: h.abs() as u64
@@ -113,7 +146,7 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
         }
     } else if size >= 3 && &preamble[..2] == b"\xff\xd8" {
         // JPEG
-        let err_conv = |_| ImError::ParserError("jpeg");
+        let err_conv = |_| ImError::ParserError(ImFormat::JPEG);
         file.seek(SeekFrom::Start(3)).map_err(err_conv)?;
         let mut buf1: [u8; 1] = [ preamble[2] ];
         let mut buf2: [u8; 2] = [0; 2];
@@ -132,7 +165,7 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
                 let w = u16::from_be_bytes([ buf4[2], buf4[3] ]);
 
                 return Ok(ImInfo {
-                    format: "jpeg",
+                    format: ImFormat::JPEG,
                     width:  w.into(),
                     height: h.into()
                 });
@@ -143,7 +176,7 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
             file.seek(SeekFrom::Current(offset)).map_err(err_conv)?;
             file.read_exact(&mut buf1).map_err(err_conv)?;
         }
-        return Err(ImError::ParserError("jpeg"));
+        return Err(ImError::ParserError(ImFormat::JPEG));
     } else if preamble.starts_with(b"RIFF") && size >= 30 && &preamble[8..12] == b"WEBP" {
         // WEBP
         let hdr = &preamble[12..16];
@@ -157,7 +190,7 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
             let h = 1u32 + ((((b3 & 0xF) as u32) << 10) | ((b2 as u32) << 2) | ((b1 & 0xC0) as u32 >> 6));
 
             return Ok(ImInfo {
-                format: "webp",
+                format: ImFormat::WEBP,
                 width:  w as u64,
                 height: h as u64,
             });
@@ -166,51 +199,51 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
             let b1 = preamble[24];
             let b2 = preamble[25];
             if b0 != 0x9d || b1 != 0x01 || b2 != 0x2a {
-                return Err(ImError::ParserError("webp"));
+                return Err(ImError::ParserError(ImFormat::WEBP));
             }
-            let w = u16::from_le_bytes(get_array(&preamble[26..], "webp")?);
-            let h = u16::from_le_bytes(get_array(&preamble[28..], "webp")?);
+            let w = u16::from_le_bytes(get_array(&preamble[26..], ImFormat::WEBP)?);
+            let h = u16::from_le_bytes(get_array(&preamble[28..], ImFormat::WEBP)?);
             return Ok(ImInfo {
-                format: "webp",
+                format: ImFormat::WEBP,
                 width:  w as u64 & 0x3ffff,
                 height: h as u64 & 0x3ffff,
             });
         }
-        return Err(ImError::ParserError("webp"));
+        return Err(ImError::ParserError(ImFormat::WEBP));
     } else if preamble.starts_with(b"qoif") && size >= 14 {
         // QOI
-        let w = u32::from_be_bytes(get_array(&preamble[4..], "qoi")?);
-        let h = u32::from_be_bytes(get_array(&preamble[8..], "qoi")?);
+        let w = u32::from_be_bytes(get_array(&preamble[4..], ImFormat::QOI)?);
+        let h = u32::from_be_bytes(get_array(&preamble[8..], ImFormat::QOI)?);
 
         return Ok(ImInfo {
-            format: "qoi",
+            format: ImFormat::QOI,
             width:  w as u64,
             height: h as u64,
         });
     } else if preamble.starts_with(b"8BPS\0\x01\0\0\0\0\0\0") && size >= 22 {
         // PSD
-        let h = u32::from_be_bytes(get_array(&preamble[14..], "psd")?);
-        let w = u32::from_be_bytes(get_array(&preamble[18..], "psd")?);
+        let h = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::PSD)?);
+        let w = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::PSD)?);
 
         return Ok(ImInfo {
-            format: "psd",
+            format: ImFormat::PSD,
             width:  w as u64,
             height: h as u64,
         });
     } else if preamble.starts_with(b"gimp xcf ") && size >= 22 && preamble[13] == 0 {
         // XCF
-        let w = u32::from_be_bytes(get_array(&preamble[14..], "psd")?);
-        let h = u32::from_be_bytes(get_array(&preamble[18..], "psd")?);
+        let w = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::XCF)?);
+        let h = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::XCF)?);
 
         return Ok(ImInfo {
-            format: "xcf",
+            format: ImFormat::XCF,
             width:  w as u64,
             height: h as u64,
         });
     } else if preamble.starts_with(b"\0\0\x01\0") && size >= 6 {
         // ICO
-        let err_conv = |_| ImError::ParserError("ico");
-        let count = u16::from_le_bytes(get_array(&preamble[4..], "ico")?);
+        let err_conv = |_| ImError::ParserError(ImFormat::ICO);
+        let count = u16::from_le_bytes(get_array(&preamble[4..], ImFormat::ICO)?);
         file.seek(SeekFrom::Start(6)).map_err(err_conv)?;
 
         let mut buf = [0u8; 16];
@@ -227,7 +260,7 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
         }
 
         return Ok(ImInfo {
-            format: "ico",
+            format: ImFormat::ICO,
             width:  width  as u64,
             height: height as u64,
         });
