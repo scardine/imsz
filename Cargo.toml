@@ -1,18 +1,24 @@
 [package]
 name = "imsz"
-version = "0.1.0"
-authors = ["Paulo Scardine <paulo@scardine.com.br>"]
+version = "0.2.0"
+authors = [
+    "Paulo Scardine <paulo@scardine.com.br>",
+    "Mathias Panzenböck <grosser.meister.morti@gmx.net>"
+]
 edition = "2018"
 
 [lib]
 name = "imsz"
 path = "src/lib.rs"
 
+[features]
+build-binary = ["argparse"]
+
 [[bin]]
 name = "imsz"
 path = "src/bin/bin.rs"
 doc = false
+required-features = ["build-binary"]
 
 [dependencies]
-argparse = "0.2.2"
-structure = "0.1"
+argparse = { version = "0.2.2", optional = true }
