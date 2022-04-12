@@ -2,7 +2,7 @@
 
 # imsz
 
-Get width and height from an image file reading as few bytes as possible. 
+Get width and height from an image file reading as few bytes as possible.
 
 ## Why?
 
@@ -10,7 +10,7 @@ A few years ago I answered a Stackoverflow question ["Get Image size WITHOUT loa
 
 ## Am I rusty?
 
-In the last 10 years I've used Python for everything. This saturday afternoon I wanted to answer the question: "at my age, can I still learn a new computer language?". So I decided to try Rust and this is the result. It was a pleasant surprise, if you are familiar with C/C++ Rust is really easy to pick up - and I see some Python influence here and there. 
+In the last 10 years I've used Python for everything. This saturday afternoon I wanted to answer the question: "at my age, can I still learn a new computer language?". So I decided to try Rust and this is the result. It was a pleasant surprise, if you are familiar with C/C++ Rust is really easy to pick up - and I see some Python influence here and there.
 
 I don't expect it to be very idiomatic Rust, it is my first Rust project so be kind!
 
@@ -18,16 +18,17 @@ I don't expect it to be very idiomatic Rust, it is my first Rust project so be k
 
 There are many things I like in Rust. I'm still looking for a good debugger, the one I was using with VSCode is unable to show the values in a HashMap, for example.
 
-## Usage:
+## Usage
 
 There is a simple example binary:
-```
-> .\target\debug\imsz.exe  tenor.gif  
-tenor.gif: git, 220 x 159
 
-> .\target\debug\imsz.exe -h
+```plain
+> cargo run --features=build-binary tenor.gif
+tenor.gif: gif, 220 x 159
+
+> cargo run --features=build-binary -h
 Usage:
-  C:\Users\paulos\work\imsz\target\debug\imsz.exe [OPTIONS] FILES [...]
+  target/debug/imsz [OPTIONS] FILES [...]
 
 The imsz library gets image size from files, this is a demo application.
 
@@ -41,15 +42,33 @@ Optional arguments:
 ```
 
 The relevant parts:
-```rust
+
+```Rust
 use imsz::imsz
 
-...
-
-let info = imsz(fname);
+let info = imsz(fname)?;
 println!("{}: {}, {} x {}", fname, info.format, info.width, info.height);
 // tenor.gif: gif, 220 x 159
+
+// alternatively if you have someting implementing Read and Seek:
+use imsz::imsz_from_reader;
+
+let mut file = File::open(fname)?;
+let info = imsz_from_reader(&mut file)?;
 ```
 
+## Supported File Types
 
-  
+* AVIF
+* BMP
+* GIF
+* ICO
+* JPEG
+* PNG
+* PSD
+* QOI
+* TIFF
+* WEBP
+* XCF
+
+No guarantees of correct or complete implementation are made.
