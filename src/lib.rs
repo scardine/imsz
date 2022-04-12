@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, BufReader};
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
@@ -14,8 +14,8 @@ pub enum ImFormat {
     PSD,
     XCF,
     ICO,
-    // TODO: AVIF
-    // TODO: TIFF
+    AVIF,
+    TIFF,
 }
 
 impl std::fmt::Display for ImFormat {
@@ -30,8 +30,8 @@ impl std::fmt::Display for ImFormat {
             Self::PSD  => "psd",
             Self::XCF  => "xcf",
             Self::ICO  => "ico",
-            // TODO: Self::AVIF => "avif",
-            // TODO: Self::TIFF => "tiff",
+            Self::AVIF => "avif",
+            Self::TIFF => "tiff",
         }.fmt(f)
     }
 }
@@ -76,8 +76,41 @@ fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; 
     }
 }
 
-pub fn imsz(fname: &str) -> ImResult<ImInfo> {
+fn find_avif_chunk<R>(reader: &mut R, name: &[u8], chunk_size: u64) -> ImResult<u64>
+where R: Read, R: Seek {
+    let mut sub_chunk_size;
+    let mut buf = [0u8; 8];
+    let mut offset = 0;
+
+    loop {
+        if offset > chunk_size {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        if let Err(_) = reader.read_exact(&mut buf) {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        sub_chunk_size = u32::from_be_bytes(get_array(&buf, ImFormat::AVIF)?) as u64;
+        if sub_chunk_size < 8 {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        if buf.ends_with(name) {
+            break;
+        }
+        offset += sub_chunk_size;
+        if let Err(_) = reader.seek(SeekFrom::Current(sub_chunk_size as i64 - 8)) {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+    }
+
+    return Ok(sub_chunk_size);
+}
+
+pub fn imsz(fname: impl AsRef<std::path::Path>) -> ImResult<ImInfo> {
     let mut file = File::open(fname)?;
+    return imsz_file(&mut file);
+}
+
+pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
     let mut preamble = [0u8; 30];
 
     let size = file.read(&mut preamble)?;
@@ -92,8 +125,8 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
 
         return Ok(ImInfo {
             format: ImFormat::GIF,
-            width:  w.into(),
-            height: h.into()
+            width:  w as u64,
+            height: h as u64,
         });
     } else if size >= 16 && &preamble[..8] == b"\x89PNG\r\n\x1a\n" {
         // PNG
@@ -112,8 +145,8 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
 
         return Ok(ImInfo {
             format: ImFormat::PNG,
-            width:  w.into(),
-            height: h.into()
+            width:  w as u64,
+            height: h as u64,
         });
     } else if size >= 10 && (&preamble[..2] == b"BM" && &preamble[6..10] == b"\0\0\0\0") {
         // BMP
@@ -127,8 +160,8 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
 
             return Ok(ImInfo {
                 format: ImFormat::BMP,
-                width:  w.into(),
-                height: h.into()
+                width:  w as u64,
+                height: h as u64,
             });
         } else {
             if size < 24 {
@@ -147,34 +180,35 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
     } else if size >= 3 && &preamble[..2] == b"\xff\xd8" {
         // JPEG
         let err_conv = |_| ImError::ParserError(ImFormat::JPEG);
-        file.seek(SeekFrom::Start(3)).map_err(err_conv)?;
+        let mut reader = BufReader::new(file);
+        reader.seek(SeekFrom::Start(3)).map_err(err_conv)?;
         let mut buf1: [u8; 1] = [ preamble[2] ];
         let mut buf2: [u8; 2] = [0; 2];
         let mut buf4: [u8; 4] = [0; 4];
         while buf1[0] != b'\xda' && buf1[0] != 0 {
             while buf1[0] != b'\xff' {
-                file.read_exact(&mut buf1).map_err(err_conv)?;
+                reader.read_exact(&mut buf1).map_err(err_conv)?;
             }
             while buf1[0] == b'\xff' {
-                file.read_exact(&mut buf1).map_err(err_conv)?;
+                reader.read_exact(&mut buf1).map_err(err_conv)?;
             }
             if buf1[0] >= 0xc0 && buf1[0] <= 0xc3 {
-                file.seek(SeekFrom::Current(3)).map_err(err_conv)?;
-                file.read_exact(&mut buf4).map_err(err_conv)?;
+                reader.seek(SeekFrom::Current(3)).map_err(err_conv)?;
+                reader.read_exact(&mut buf4).map_err(err_conv)?;
                 let h = u16::from_be_bytes([ buf4[0], buf4[1] ]);
                 let w = u16::from_be_bytes([ buf4[2], buf4[3] ]);
 
                 return Ok(ImInfo {
                     format: ImFormat::JPEG,
-                    width:  w.into(),
-                    height: h.into()
+                    width:  w as u64,
+                    height: h as u64,
                 });
             }
-            file.read_exact(&mut buf2).map_err(err_conv)?;
+            reader.read_exact(&mut buf2).map_err(err_conv)?;
             let b = u16::from_be_bytes(buf2);
-            let offset: i64 = (b - 2).into();
-            file.seek(SeekFrom::Current(offset)).map_err(err_conv)?;
-            file.read_exact(&mut buf1).map_err(err_conv)?;
+            let offset = (b - 2) as i64;
+            reader.seek(SeekFrom::Current(offset)).map_err(err_conv)?;
+            reader.read_exact(&mut buf1).map_err(err_conv)?;
         }
         return Err(ImError::ParserError(ImFormat::JPEG));
     } else if preamble.starts_with(b"RIFF") && size >= 30 && &preamble[8..12] == b"WEBP" {
@@ -210,6 +244,42 @@ pub fn imsz(fname: &str) -> ImResult<ImInfo> {
             });
         }
         return Err(ImError::ParserError(ImFormat::WEBP));
+    } else if size >= 12 && &preamble[4..12] == b"ftypavif" {
+        // AVIF
+        let err_conv = |_| ImError::ParserError(ImFormat::AVIF);
+
+        let ftype_size = u32::from_be_bytes(get_array(&preamble, ImFormat::AVIF)?);
+        if ftype_size < 12 {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        let mut reader = BufReader::new(file);
+        reader.seek(SeekFrom::Start(ftype_size as u64)).map_err(err_conv)?;
+
+        // chunk nesting: meta > iprp > ipco > ispe
+        let chunk_size = find_avif_chunk(&mut reader, b"meta", u64::MAX)?;
+        if chunk_size < 12 {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        reader.seek(SeekFrom::Current(4)).map_err(err_conv)?;
+        let chunk_size = find_avif_chunk(&mut reader, b"iprp", chunk_size - 12)?;
+        let chunk_size = find_avif_chunk(&mut reader, b"ipco", chunk_size - 8)?;
+        let chunk_size = find_avif_chunk(&mut reader, b"ispe", chunk_size - 8)?;
+
+        if chunk_size < 12 {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+
+        let mut buf = [0u8; 12];
+        reader.read_exact(&mut buf).map_err(err_conv)?;
+
+        let w = u32::from_be_bytes(get_array(&buf[4..], ImFormat::AVIF)?);
+        let h = u32::from_be_bytes(get_array(&buf[8..], ImFormat::AVIF)?);
+
+        return Ok(ImInfo {
+            format: ImFormat::GIF,
+            width:  w as u64,
+            height: h as u64,
+        });
     } else if preamble.starts_with(b"qoif") && size >= 14 {
         // QOI
         let w = u32::from_be_bytes(get_array(&preamble[4..], ImFormat::QOI)?);
