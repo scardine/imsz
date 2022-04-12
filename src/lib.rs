@@ -68,6 +68,215 @@ impl From<std::io::Error> for ImError {
 
 pub type ImResult<T> = std::result::Result<T, ImError>;
 
+trait Ratio<T: Sized> {
+    fn value<R>(&self) -> R::Output
+    where R: Sized, R: std::ops::Div, R: From<T>;
+}
+
+impl Ratio<u32> for (u32, u32) {
+    fn value<R>(&self) -> R::Output
+    where R: Sized, R: std::ops::Div, R: From<u32> {
+        let (a, b) = *self;
+        let x: R = a.into();
+        let y: R = b.into();
+        x / y
+    }
+}
+
+impl Ratio<i32> for (i32, i32) {
+    fn value<R>(&self) -> R::Output
+    where R: Sized, R: std::ops::Div, R: From<i32> {
+        let (a, b) = *self;
+        let x: R = a.into();
+        let y: R = b.into();
+        x / y
+    }
+}
+
+trait BinaryReader {
+    #[inline]
+    fn read_u8(reader: &mut impl Read) -> std::io::Result<u8> {
+        let mut buf = [0u8];
+        reader.read_exact(&mut buf)?;
+        return Ok(buf[0]);
+    }
+
+    #[inline]
+    fn read_uchar(reader: &mut impl Read) -> std::io::Result<u8> {
+        let mut buf = [0u8];
+        reader.read_exact(&mut buf)?;
+        return Ok(buf[0]);
+    }
+
+    #[inline]
+    fn read_i8(reader: &mut impl Read) -> std::io::Result<i8> {
+        let mut buf = [0u8];
+        reader.read_exact(&mut buf)?;
+        return Ok(buf[0] as i8);
+    }
+
+    #[inline]
+    fn read_ichar(reader: &mut impl Read) -> std::io::Result<i8> {
+        let mut buf = [0u8];
+        reader.read_exact(&mut buf)?;
+        return Ok(buf[0] as i8);
+    }
+
+    fn get_u32(buf: [u8; 4]) -> u32;
+
+    fn read_u16(reader: &mut impl Read) -> std::io::Result<u16>;
+    fn read_u32(reader: &mut impl Read) -> std::io::Result<u32>;
+    fn read_uratio(reader: &mut impl Read) -> std::io::Result<(u32, u32)>;
+
+    fn read_i16(reader: &mut impl Read) -> std::io::Result<i16>;
+    fn read_i32(reader: &mut impl Read) -> std::io::Result<i32>;
+    fn read_iratio(reader: &mut impl Read) -> std::io::Result<(i32, i32)>;
+
+    fn read_f32(reader: &mut impl Read) -> std::io::Result<f32>;
+    fn read_f64(reader: &mut impl Read) -> std::io::Result<f64>;
+}
+
+struct LittleEndianReader;
+struct BigEndianReader;
+
+impl BinaryReader for LittleEndianReader {
+    #[inline]
+    fn get_u32(buf: [u8; 4]) -> u32 {
+        return u32::from_le_bytes(buf);
+    }
+
+    #[inline]
+    fn read_u16(reader: &mut impl Read) -> std::io::Result<u16> {
+        let mut buf = [0u8; 2];
+        reader.read_exact(&mut buf)?;
+        return Ok(u16::from_le_bytes(buf));
+    }
+
+    #[inline]
+    fn read_u32(reader: &mut impl Read) -> std::io::Result<u32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(u32::from_le_bytes(buf));
+    }
+
+    #[inline]
+    fn read_uratio(reader: &mut impl Read) -> std::io::Result<(u32, u32)> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok((
+            u32::from_le_bytes([ buf[0], buf[1], buf[2], buf[3] ]),
+            u32::from_le_bytes([ buf[4], buf[5], buf[6], buf[7] ]),
+        ));
+    }
+
+    #[inline]
+    fn read_i16(reader: &mut impl Read) -> std::io::Result<i16> {
+        let mut buf = [0u8; 2];
+        reader.read_exact(&mut buf)?;
+        return Ok(i16::from_le_bytes(buf));
+    }
+
+    #[inline]
+    fn read_i32(reader: &mut impl Read) -> std::io::Result<i32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(i32::from_le_bytes(buf));
+    }
+
+    #[inline]
+    fn read_iratio(reader: &mut impl Read) -> std::io::Result<(i32, i32)> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok((
+            i32::from_le_bytes([ buf[0], buf[1], buf[2], buf[3] ]),
+            i32::from_le_bytes([ buf[4], buf[5], buf[6], buf[7] ]),
+        ));
+    }
+
+    #[inline]
+    fn read_f32(reader: &mut impl Read) -> std::io::Result<f32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(f32::from_le_bytes(buf));
+    }
+
+    #[inline]
+    fn read_f64(reader: &mut impl Read) -> std::io::Result<f64> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok(f64::from_le_bytes(buf));
+    }
+}
+
+impl BinaryReader for BigEndianReader {
+    #[inline]
+    fn get_u32(buf: [u8; 4]) -> u32 {
+        return u32::from_be_bytes(buf);
+    }
+
+    #[inline]
+    fn read_u16(reader: &mut impl Read) -> std::io::Result<u16> {
+        let mut buf = [0u8; 2];
+        reader.read_exact(&mut buf)?;
+        return Ok(u16::from_be_bytes(buf));
+    }
+
+    #[inline]
+    fn read_u32(reader: &mut impl Read) -> std::io::Result<u32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(u32::from_be_bytes(buf));
+    }
+
+    #[inline]
+    fn read_uratio(reader: &mut impl Read) -> std::io::Result<(u32, u32)> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok((
+            u32::from_be_bytes([ buf[0], buf[1], buf[2], buf[3] ]),
+            u32::from_be_bytes([ buf[4], buf[5], buf[6], buf[7] ]),
+        ));
+    }
+
+    #[inline]
+    fn read_i16(reader: &mut impl Read) -> std::io::Result<i16> {
+        let mut buf = [0u8; 2];
+        reader.read_exact(&mut buf)?;
+        return Ok(i16::from_be_bytes(buf));
+    }
+
+    #[inline]
+    fn read_i32(reader: &mut impl Read) -> std::io::Result<i32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(i32::from_be_bytes(buf));
+    }
+
+    #[inline]
+    fn read_iratio(reader: &mut impl Read) -> std::io::Result<(i32, i32)> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok((
+            i32::from_be_bytes([ buf[0], buf[1], buf[2], buf[3] ]),
+            i32::from_be_bytes([ buf[4], buf[5], buf[6], buf[7] ]),
+        ));
+    }
+
+    #[inline]
+    fn read_f32(reader: &mut impl Read) -> std::io::Result<f32> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        return Ok(f32::from_be_bytes(buf));
+    }
+
+    #[inline]
+    fn read_f64(reader: &mut impl Read) -> std::io::Result<f64> {
+        let mut buf = [0u8; 8];
+        reader.read_exact(&mut buf)?;
+        return Ok(f64::from_be_bytes(buf));
+    }
+}
+
 #[inline]
 fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; LEN]> {
     match slice[..LEN].try_into() {
@@ -105,12 +314,98 @@ where R: Read, R: Seek {
     return Ok(sub_chunk_size);
 }
 
-pub fn imsz(fname: impl AsRef<std::path::Path>) -> ImResult<ImInfo> {
-    let mut file = File::open(fname)?;
-    return imsz_file(&mut file);
+macro_rules! map_err {
+    ($fmt:ident $expr:expr) => {
+        if let Err(_) = $expr {
+            return Err(ImError::ParserError(ImFormat::$fmt));
+        }
+    };
 }
 
-pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
+macro_rules! map_expr {
+    ($fmt:ident $expr:expr) => {
+        match $expr {
+            Err(_) => return Err(ImError::ParserError(ImFormat::$fmt)),
+            Ok(value) => value
+        }
+    };
+}
+
+fn parse_tiff<BR, R>(file: &mut R, preamble: &[u8]) -> ImResult<ImInfo>
+where BR: BinaryReader, R: Read, R: Seek {
+    let mut reader = BufReader::new(file);
+
+    let ifd_offset = BR::get_u32(get_array(&preamble[4..], ImFormat::TIFF)?);
+    map_err!(TIFF reader.seek(SeekFrom::Start(ifd_offset as u64)));
+
+    let ifd_entry_count = map_expr!(TIFF BR::read_u16(&mut reader)) as u32;
+    // 2 bytes: TagId + 2 bytes: type + 4 bytes: count of values + 4
+    // bytes: value offset
+    let mut width:  Option<u64> = None;
+    let mut height: Option<u64> = None;
+
+    for index in 0..ifd_entry_count {
+        // sizeof ifd_entry_count = 2
+        let entry_offset = ifd_offset + 2 + index * 12;
+        map_err!(TIFF reader.seek(SeekFrom::Start(entry_offset as u64)));
+        let tag = map_expr!(TIFF BR::read_u16(&mut reader));
+
+        // 256 ... width
+        // 257 ... height
+        if tag == 256 || tag == 257 {
+            // if type indicates that value fits into 4 bytes, value
+            // offset is not an offset but value itself
+            let ftype = map_expr!(TIFF BR::read_u16(&mut reader));
+            map_err!(TIFF reader.seek(SeekFrom::Start(entry_offset as u64 + 8)));
+            let value: u64 = match ftype {
+                 1 => map_expr!(TIFF BR::read_u8(&mut reader)).into(),
+                 2 => map_expr!(TIFF BR::read_uchar(&mut reader)).into(),
+                 3 => map_expr!(TIFF BR::read_u16(&mut reader)).into(),
+                 4 => map_expr!(TIFF BR::read_u32(&mut reader)).into(),
+                 5 => map_expr!(TIFF BR::read_uratio(&mut reader)).value::<u64>(),
+                 6 => map_expr!(TIFF BR::read_i8(&mut reader)).max(0) as u64,
+                 7 => map_expr!(TIFF BR::read_ichar(&mut reader)).max(0) as u64,
+                 8 => map_expr!(TIFF BR::read_i16(&mut reader)).max(0) as u64,
+                 9 => map_expr!(TIFF BR::read_i32(&mut reader)).max(0) as u64,
+                10 => map_expr!(TIFF BR::read_iratio(&mut reader)).value::<i64>().max(0) as u64,
+                11 => map_expr!(TIFF BR::read_f32(&mut reader)) as u64,
+                12 => map_expr!(TIFF BR::read_f64(&mut reader)) as u64,
+                _ => return Err(ImError::ParserError(ImFormat::TIFF))
+            };
+
+            if tag == 256 {
+                if let Some(height) = height {
+                    return Ok(ImInfo {
+                        format: ImFormat::TIFF,
+                        width: value,
+                        height,
+                    });
+                }
+                width = Some(value);
+            } else {
+                if let Some(width) = width {
+                    return Ok(ImInfo {
+                        format: ImFormat::TIFF,
+                        width,
+                        height: value,
+                    });
+                }
+                height = Some(value);
+            }
+        }
+    }
+
+    return Err(ImError::ParserError(ImFormat::TIFF));
+}
+
+#[inline]
+pub fn imsz(fname: impl AsRef<std::path::Path>) -> ImResult<ImInfo> {
+    let mut file = File::open(fname)?;
+    return imsz_from_reader(&mut file);
+}
+
+pub fn imsz_from_reader<R>(file: &mut R) -> ImResult<ImInfo>
+where R: Read, R: Seek {
     let mut preamble = [0u8; 30];
 
     let size = file.read(&mut preamble)?;
@@ -179,22 +474,21 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
         }
     } else if size >= 3 && &preamble[..2] == b"\xff\xd8" {
         // JPEG
-        let err_conv = |_| ImError::ParserError(ImFormat::JPEG);
         let mut reader = BufReader::new(file);
-        reader.seek(SeekFrom::Start(3)).map_err(err_conv)?;
+        map_err!(JPEG reader.seek(SeekFrom::Start(3)));
         let mut buf1: [u8; 1] = [ preamble[2] ];
         let mut buf2: [u8; 2] = [0; 2];
         let mut buf4: [u8; 4] = [0; 4];
         while buf1[0] != b'\xda' && buf1[0] != 0 {
             while buf1[0] != b'\xff' {
-                reader.read_exact(&mut buf1).map_err(err_conv)?;
+                map_err!(JPEG reader.read_exact(&mut buf1));
             }
             while buf1[0] == b'\xff' {
-                reader.read_exact(&mut buf1).map_err(err_conv)?;
+                map_err!(JPEG reader.read_exact(&mut buf1));
             }
             if buf1[0] >= 0xc0 && buf1[0] <= 0xc3 {
-                reader.seek(SeekFrom::Current(3)).map_err(err_conv)?;
-                reader.read_exact(&mut buf4).map_err(err_conv)?;
+                map_err!(JPEG reader.seek(SeekFrom::Current(3)));
+                map_err!(JPEG reader.read_exact(&mut buf4));
                 let h = u16::from_be_bytes([ buf4[0], buf4[1] ]);
                 let w = u16::from_be_bytes([ buf4[2], buf4[3] ]);
 
@@ -204,11 +498,11 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
                     height: h as u64,
                 });
             }
-            reader.read_exact(&mut buf2).map_err(err_conv)?;
+            map_err!(JPEG reader.read_exact(&mut buf2));
             let b = u16::from_be_bytes(buf2);
             let offset = (b - 2) as i64;
-            reader.seek(SeekFrom::Current(offset)).map_err(err_conv)?;
-            reader.read_exact(&mut buf1).map_err(err_conv)?;
+            map_err!(JPEG reader.seek(SeekFrom::Current(offset)));
+            map_err!(JPEG reader.read_exact(&mut buf1));
         }
         return Err(ImError::ParserError(ImFormat::JPEG));
     } else if preamble.starts_with(b"RIFF") && size >= 30 && &preamble[8..12] == b"WEBP" {
@@ -246,21 +540,19 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
         return Err(ImError::ParserError(ImFormat::WEBP));
     } else if size >= 12 && &preamble[4..12] == b"ftypavif" {
         // AVIF
-        let err_conv = |_| ImError::ParserError(ImFormat::AVIF);
-
         let ftype_size = u32::from_be_bytes(get_array(&preamble, ImFormat::AVIF)?);
         if ftype_size < 12 {
             return Err(ImError::ParserError(ImFormat::AVIF));
         }
         let mut reader = BufReader::new(file);
-        reader.seek(SeekFrom::Start(ftype_size as u64)).map_err(err_conv)?;
+        map_err!(AVIF reader.seek(SeekFrom::Start(ftype_size as u64)));
 
         // chunk nesting: meta > iprp > ipco > ispe
         let chunk_size = find_avif_chunk(&mut reader, b"meta", u64::MAX)?;
         if chunk_size < 12 {
             return Err(ImError::ParserError(ImFormat::AVIF));
         }
-        reader.seek(SeekFrom::Current(4)).map_err(err_conv)?;
+        map_err!(AVIF reader.seek(SeekFrom::Current(4)));
         let chunk_size = find_avif_chunk(&mut reader, b"iprp", chunk_size - 12)?;
         let chunk_size = find_avif_chunk(&mut reader, b"ipco", chunk_size - 8)?;
         let chunk_size = find_avif_chunk(&mut reader, b"ispe", chunk_size - 8)?;
@@ -270,7 +562,7 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
         }
 
         let mut buf = [0u8; 12];
-        reader.read_exact(&mut buf).map_err(err_conv)?;
+        map_err!(AVIF reader.read_exact(&mut buf));
 
         let w = u32::from_be_bytes(get_array(&buf[4..], ImFormat::AVIF)?);
         let h = u32::from_be_bytes(get_array(&buf[8..], ImFormat::AVIF)?);
@@ -280,6 +572,15 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
             width:  w as u64,
             height: h as u64,
         });
+    } else if size >= 8 && (preamble.starts_with(b"II*\0") || preamble.starts_with(b"MM\0*")) {
+        // TIFF
+        if preamble.starts_with(b"MM") {
+            // big endian
+            return parse_tiff::<BigEndianReader, R>(file, &preamble[..size]);
+        } else {
+            // little endian
+            return parse_tiff::<LittleEndianReader, R>(file, &preamble[..size]);
+        }
     } else if preamble.starts_with(b"qoif") && size >= 14 {
         // QOI
         let w = u32::from_be_bytes(get_array(&preamble[4..], ImFormat::QOI)?);
@@ -312,15 +613,14 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
         });
     } else if preamble.starts_with(b"\0\0\x01\0") && size >= 6 {
         // ICO
-        let err_conv = |_| ImError::ParserError(ImFormat::ICO);
         let count = u16::from_le_bytes(get_array(&preamble[4..], ImFormat::ICO)?);
-        file.seek(SeekFrom::Start(6)).map_err(err_conv)?;
+        map_err!(ICO file.seek(SeekFrom::Start(6)));
 
         let mut buf = [0u8; 16];
         let mut width:  u32 = 0;
         let mut height: u32 = 0;
         for _ in 0..count {
-            file.read_exact(&mut buf).map_err(err_conv)?;
+            map_err!(ICO file.read_exact(&mut buf));
             let w = buf[0] as u32;
             let h = buf[1] as u32;
             if w >= width && h >= height {
@@ -335,6 +635,5 @@ pub fn imsz_file(file: &mut File) -> ImResult<ImInfo> {
             height: height as u64,
         });
     }
-    // TODO: AVIF and TIFF
     return Err(ImError::UnknownFormat);
 }
