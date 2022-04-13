@@ -1,5 +1,5 @@
 [package]
-name = "imsz"
+name = "imsz_c"
 version = "0.2.0"
 authors = [
     "Paulo Scardine <paulo@scardine.com.br>",
@@ -10,15 +10,7 @@ edition = "2021"
 [lib]
 name = "imsz"
 path = "src/lib.rs"
-
-[features]
-build-binary = ["argparse"]
-
-[[bin]]
-name = "imsz"
-path = "src/bin/bin.rs"
-doc = false
-required-features = ["build-binary"]
+crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-argparse = { version = "0.2.2", optional = true }
+imsz = { path = ".." }

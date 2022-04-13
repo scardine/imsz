@@ -1,8 +1,5 @@
-extern crate argparse;
-extern crate imsz;
 use argparse::{ArgumentParser, StoreTrue, Collect, Print};
 use imsz::imsz;
-
 
 fn main() {
     struct Options {
