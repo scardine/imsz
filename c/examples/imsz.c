@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
                 break;
 
            case IMSZ_ERR_UNSUPPORTED:
-                fprintf(stderr, "%s IO Error\n", fname);
+                fprintf(stderr, "%s Unsupported Format\n", fname);
                 status = 1;
                 break;
 

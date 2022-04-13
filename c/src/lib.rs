@@ -1,9 +1,9 @@
 use imsz::{ImError};
-use std::os::raw::{c_int, c_char};
+use std::os::raw::{c_int, c_char, c_uint};
 
 #[repr(C)]
 pub struct ImInfoC {
-    format: c_int,
+    format: c_uint,
     width:  u64,
     height: u64,
 }
@@ -17,7 +17,7 @@ pub extern "C" fn imsz(fname: *const c_char, info_ptr: *mut ImInfoC) -> c_int {
         Ok(info) => {
             if info_ptr != std::ptr::null_mut() {
                 unsafe {
-                    (*info_ptr).format = info.format as c_int;
+                    (*info_ptr).format = info.format as c_uint;
                     (*info_ptr).width  = info.width;
                     (*info_ptr).height = info.height;
                 }
@@ -34,7 +34,7 @@ pub extern "C" fn imsz(fname: *const c_char, info_ptr: *mut ImInfoC) -> c_int {
         Err(ImError::ParserError(format)) => {
             if info_ptr != std::ptr::null_mut() {
                 unsafe {
-                    (*info_ptr).format = format as c_int;
+                    (*info_ptr).format = format as c_uint;
                 }
             }
             return -2;

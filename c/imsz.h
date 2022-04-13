@@ -42,15 +42,15 @@ extern "C" {
 #define IMSZ_INIT { .format = 0, .width = (uint64_t)0, .height = (uint64_t)0 }
 
 typedef struct ImInfo {
-    int format;
+    unsigned int format;
     uint64_t width;
     uint64_t height;
 } ImInfo;
 
 IMSZ_EXPORT int imsz(const char *fname, ImInfo *info_ptr);
 
-#define IMSZ_FORMAT_NAMES (char*[]){ NULL, "gif", "png", "bmp", "jpeg", "webp", "qoi", "psd", "xcf", "ico", "avif", "tiff" }
-#define imsz_format_name(format) ((format) <= 0 || (format) >= sizeof(IMSZ_FORMAT_NAMES) / sizeof(char*) ? "(unknown)" : (IMSZ_FORMAT_NAMES)[(format)])
+#define IMSZ_FORMAT_NAMES (char*[]){ "(unknown)", "gif", "png", "bmp", "jpeg", "webp", "qoi", "psd", "xcf", "ico", "avif", "tiff" }
+#define imsz_format_name(format) ((format) >= sizeof(IMSZ_FORMAT_NAMES) / sizeof(char*) ? (IMSZ_FORMAT_NAMES)[0] : (IMSZ_FORMAT_NAMES)[(format)])
 
 #ifdef __cpluspluc
 }

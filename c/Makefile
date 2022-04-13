@@ -7,12 +7,12 @@ LINK=STATIC
 ifeq ($(RELEASE),ON)
     BUILDDIR=target/release
     CFLAGS += -O2
-	CARGO_FLAGS=--release
+    CARGO_FLAGS=--release
 else
 ifeq ($(RELEASE),OFF)
     BUILDDIR=target/debug
     CFLAGS += -g
-	CARGO_FLAGS=--debug
+    CARGO_FLAGS=
 else
     $(error illegal value for RELEASE=$(RELEASE))
 endif
