@@ -22,10 +22,12 @@ extern "C" {
     #endif
 #endif
 
-#define IMSZ_OK               0
-#define IMSZ_ERR_IO          -1
-#define IMSZ_ERR_PARSER      -2
-#define IMSZ_ERR_UNSUPPORTED -3
+typedef enum ImError {
+    IMSZ_OK              =  0,
+    IMSZ_ERR_IO          = -1,
+    IMSZ_ERR_PARSER      = -2,
+    IMSZ_ERR_UNSUPPORTED = -3,
+} ImError;
 
 typedef enum ImFormat {
     IMSZ_GIF  =  1u,
