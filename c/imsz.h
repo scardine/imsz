@@ -27,17 +27,19 @@ extern "C" {
 #define IMSZ_ERR_PARSER      -2
 #define IMSZ_ERR_UNSUPPORTED -3
 
-#define IMSZ_GIF   1
-#define IMSZ_PNG   2
-#define IMSZ_BMP   3
-#define IMSZ_JPEG  4
-#define IMSZ_WEBP  5
-#define IMSZ_QOI   6
-#define IMSZ_PSD   7
-#define IMSZ_XCF   8
-#define IMSZ_ICO   9
-#define IMSZ_AVIF 10
-#define IMSZ_TIFF 11
+typedef enum ImFormat {
+    IMSZ_GIF  =  1u,
+    IMSZ_PNG  =  2u,
+    IMSZ_BMP  =  3u,
+    IMSZ_JPEG =  4u,
+    IMSZ_WEBP =  5u,
+    IMSZ_QOI  =  6u,
+    IMSZ_PSD  =  7u,
+    IMSZ_XCF  =  8u,
+    IMSZ_ICO  =  9u,
+    IMSZ_AVIF = 10u,
+    IMSZ_TIFF = 11u,
+} ImFormat;
 
 #define IMSZ_INIT { .format = 0, .width = (uint64_t)0, .height = (uint64_t)0 }
 
@@ -50,7 +52,7 @@ typedef struct ImInfo {
 IMSZ_EXPORT int imsz(const char *fname, ImInfo *info_ptr);
 
 #define IMSZ_FORMAT_NAMES (char*[]){ "(unknown)", "gif", "png", "bmp", "jpeg", "webp", "qoi", "psd", "xcf", "ico", "avif", "tiff" }
-#define imsz_format_name(format) ((format) >= sizeof(IMSZ_FORMAT_NAMES) / sizeof(char*) ? (IMSZ_FORMAT_NAMES)[0] : (IMSZ_FORMAT_NAMES)[(format)])
+#define imsz_format_name(format) ((format) <= 0 || (format) >= sizeof(IMSZ_FORMAT_NAMES) / sizeof(char*) ? (IMSZ_FORMAT_NAMES)[0] : (IMSZ_FORMAT_NAMES)[(format)])
 
 #ifdef __cpluspluc
 }
