@@ -320,16 +320,6 @@ macro_rules! map_expr {
     };
 }
 
-/*
-#[inline]
-fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; LEN]> {
-    match slice[..LEN].try_into() {
-        Ok(array) => Ok(array),
-        Err(_) => Err(ImError::ParserError(format)),
-    }
-}
-*/
-
 fn find_avif_chunk<R>(reader: &mut R, name: &[u8], chunk_size: u64) -> ImResult<u64>
 where R: Read, R: Seek {
     let mut sub_chunk_size;
