@@ -545,6 +545,22 @@ where R: Read, R: Seek {
                 width:  w as u64 & 0x3ffff,
                 height: h as u64 & 0x3ffff,
             });
+        } else if hdr == b"VP8X" {
+            let w1 = preamble[24] as u32;
+            let w2 = preamble[25] as u32;
+            let w3 = preamble[26] as u32;
+            let h1 = preamble[27] as u32;
+            let h2 = preamble[28] as u32;
+            let h3 = preamble[29] as u32;
+
+            let width  = (w1 | w2 << 8 | w3 << 16) + 1;
+            let height = (h1 | h2 << 8 | h3 << 16) + 1;
+
+            return Ok(ImInfo {
+                format: ImFormat::WEBP,
+                width:  width  as u64,
+                height: height as u64,
+            });
         }
         return Err(ImError::ParserError(ImFormat::WEBP));
     } else if size >= 12 && &preamble[4..12] == b"ftypavif" {
