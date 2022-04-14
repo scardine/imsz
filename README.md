@@ -23,28 +23,28 @@ There are many things I like in Rust. I'm still looking for a good debugger, the
 There is a simple example binary:
 
 ```plain
-> cargo run --features=build-binary tenor.gif
+> cargo run --example imsz tenor.gif
 tenor.gif: gif, 220 x 159
 
-> cargo run --features=build-binary -h
-Usage:
-  target/debug/imsz [OPTIONS] FILES [...]
+> cargo run --example imsz -- -h
+imsz 0.2.0
+Paulo Scardine <paulo@scardine.com.br>, Mathias Panzenböck <grosser.meister.morti@gmx.net>
 
-The imsz library gets image size from files, this is a demo application.
+USAGE:
+    imsz [FILES]...
 
-Positional arguments:
-  files                 List of files to process
+ARGS:
+    <FILES>...    
 
-Optional arguments:
-  -h,--help             Show this help message and exit
-  -v,--verbose          Be verbose
-  -V,--version          Display version and exits
+OPTIONS:
+    -h, --help       Print help information
+    -V, --version    Print version information
 ```
 
 The relevant parts:
 
 ```Rust
-use imsz::imsz
+use imsz::imsz;
 
 let info = imsz(fname)?;
 println!("{}: {}, {} x {}", fname, info.format, info.width, info.height);
