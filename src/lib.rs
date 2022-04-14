@@ -689,6 +689,7 @@ where R: Read, R: Seek {
         });
     } else if size > 8 && preamble.starts_with(b"\x76\x2f\x31\x01") && (preamble[4] == 0x01 || preamble[4] == 0x02) {
         // OpenEXR
+        // https://www.openexr.com/documentation/openexrfilelayout.pdf
         let mut reader = BufReader::new(file);
         map_err!(OpenEXR reader.seek(SeekFrom::Start(8)));
 
