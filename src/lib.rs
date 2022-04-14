@@ -18,6 +18,7 @@ pub enum ImFormat {
     OpenEXR = 12,
     PCX     = 13,
     TGA     = 14,
+    DDS     = 15,
 }
 
 impl ImFormat {
@@ -37,6 +38,7 @@ impl ImFormat {
             Self::OpenEXR => "OpenEXR",
             Self::PCX     => "pcx",
             Self::TGA     => "tga",
+            Self::DDS     => "dds",
         }
     }
 }
@@ -772,6 +774,19 @@ where R: Read, R: Seek {
             format: ImFormat::PCX,
             width:  width  as u64,
             height: height as u64,
+        });
+    } else if size >= 30 && preamble.starts_with(b"DDS \x7C\0\0\0") && (u32::from_le_bytes(array4!(preamble, 8)) & 0x1007) != 0 {
+        // DDS
+        // http://doc.51windows.net/directx9_sdk/graphics/reference/DDSFileReference/ddsfileformat.htm
+        // https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dds-header
+
+        let h = u32::from_le_bytes(array4!(preamble, 12));
+        let w = u32::from_le_bytes(array4!(preamble, 16));
+
+        return Ok(ImInfo {
+            format: ImFormat::DDS,
+            width:  w as u64,
+            height: h as u64,
         });
     } else if size >= 30 && preamble[1] < 2 && preamble[2] < 12 && is_tga(file)? {
         // TGA

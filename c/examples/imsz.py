@@ -36,6 +36,7 @@ class ImFormat(Enum):
     OpenEXR = 12
     PCX     = 13
     TGA     = 14
+    DDS     = 15
 
 class ImInfo(NamedTuple):
     format: ImFormat
