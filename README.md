@@ -66,6 +66,7 @@ let info = imsz_from_reader(&mut file)?;
 * JPEG
 * PNG
 * PSD
+* OpenEXR
 * QOI
 * TIFF
 * WEBP

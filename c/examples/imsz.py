@@ -22,17 +22,18 @@ libpath = join_path(dirname(abspath(__file__)), "..", "target", "debug" if __deb
 _imsz = ffi.dlopen(libpath)
 
 class ImFormat(Enum):
-    GIF  =  1
-    PNG  =  2
-    BMP  =  3
-    JPEG =  4
-    WEBP =  5
-    QOI  =  6
-    PSD  =  7
-    XCF  =  8
-    ICO  =  9
-    AVIF = 10
-    TIFF = 11
+    GIF     =  1
+    PNG     =  2
+    BMP     =  3
+    JPEG    =  4
+    WEBP    =  5
+    QOI     =  6
+    PSD     =  7
+    XCF     =  8
+    ICO     =  9
+    AVIF    = 10
+    TIFF    = 11
+    OpenEXR = 12
 
 class ImInfo(NamedTuple):
     format: ImFormat

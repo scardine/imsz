@@ -5,33 +5,35 @@ use std::io::{Read, Seek, SeekFrom, BufReader};
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum ImFormat {
-    GIF  =  1,
-    PNG  =  2,
-    BMP  =  3,
-    JPEG =  4,
-    WEBP =  5,
-    QOI  =  6,
-    PSD  =  7,
-    XCF  =  8,
-    ICO  =  9,
-    AVIF = 10,
-    TIFF = 11,
+    GIF     =  1,
+    PNG     =  2,
+    BMP     =  3,
+    JPEG    =  4,
+    WEBP    =  5,
+    QOI     =  6,
+    PSD     =  7,
+    XCF     =  8,
+    ICO     =  9,
+    AVIF    = 10,
+    TIFF    = 11,
+    OpenEXR = 12,
 }
 
 impl ImFormat {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::GIF  => "gif",
-            Self::PNG  => "png",
-            Self::BMP  => "bmp",
-            Self::JPEG => "jpeg",
-            Self::WEBP => "webp",
-            Self::QOI  => "qoi",
-            Self::PSD  => "psd",
-            Self::XCF  => "xcf",
-            Self::ICO  => "ico",
-            Self::AVIF => "avif",
-            Self::TIFF => "tiff",
+            Self::GIF     => "gif",
+            Self::PNG     => "png",
+            Self::BMP     => "bmp",
+            Self::JPEG    => "jpeg",
+            Self::WEBP    => "webp",
+            Self::QOI     => "qoi",
+            Self::PSD     => "psd",
+            Self::XCF     => "xcf",
+            Self::ICO     => "ico",
+            Self::AVIF    => "avif",
+            Self::TIFF    => "tiff",
+            Self::OpenEXR => "OpenEXR",
         }
     }
 }
@@ -512,7 +514,7 @@ where R: Read, R: Seek {
             map_err!(JPEG reader.read_exact(&mut buf1));
         }
         return Err(ImError::ParserError(ImFormat::JPEG));
-    } else if preamble.starts_with(b"RIFF") && size >= 30 && &preamble[8..12] == b"WEBP" {
+    } else if size >= 30 && preamble.starts_with(b"RIFF") && &preamble[8..12] == b"WEBP" {
         // WEBP
         let hdr = &preamble[12..16];
         if hdr == b"VP8L" {
@@ -588,7 +590,7 @@ where R: Read, R: Seek {
             // little endian
             return parse_tiff::<LittleEndianReader, R>(file, &preamble[..size]);
         }
-    } else if preamble.starts_with(b"qoif") && size >= 14 {
+    } else if size >= 14 && preamble.starts_with(b"qoif") {
         // QOI
         let w = u32::from_be_bytes(get_array(&preamble[4..], ImFormat::QOI)?);
         let h = u32::from_be_bytes(get_array(&preamble[8..], ImFormat::QOI)?);
@@ -598,7 +600,7 @@ where R: Read, R: Seek {
             width:  w as u64,
             height: h as u64,
         });
-    } else if preamble.starts_with(b"8BPS\0\x01\0\0\0\0\0\0") && size >= 22 {
+    } else if size >= 22 && preamble.starts_with(b"8BPS\0\x01\0\0\0\0\0\0") {
         // PSD
         let h = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::PSD)?);
         let w = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::PSD)?);
@@ -608,7 +610,7 @@ where R: Read, R: Seek {
             width:  w as u64,
             height: h as u64,
         });
-    } else if preamble.starts_with(b"gimp xcf ") && size >= 22 && preamble[13] == 0 {
+    } else if size >= 22 && preamble.starts_with(b"gimp xcf ") && preamble[13] == 0 {
         // XCF
         let w = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::XCF)?);
         let h = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::XCF)?);
@@ -618,7 +620,7 @@ where R: Read, R: Seek {
             width:  w as u64,
             height: h as u64,
         });
-    } else if preamble.starts_with(b"\0\0\x01\0") && size >= 6 {
+    } else if size >= 6 && preamble.starts_with(b"\0\0\x01\0") {
         // ICO
         let count = u16::from_le_bytes(get_array(&preamble[4..], ImFormat::ICO)?);
         map_err!(ICO file.seek(SeekFrom::Start(6)));
@@ -641,6 +643,75 @@ where R: Read, R: Seek {
             width:  width  as u64,
             height: height as u64,
         });
+    } else if size > 8 && preamble.starts_with(b"\x76\x2f\x31\x01") && (preamble[4] == 0x01 || preamble[4] == 0x02) {
+        // OpenEXR
+        let mut reader = BufReader::new(file);
+        map_err!(OpenEXR reader.seek(SeekFrom::Start(8)));
+
+        let mut name_buf = Vec::new();
+        let mut type_buf = Vec::new();
+        let mut buf1 = [0u8];
+        let mut buf4 = [0u8; 4];
+
+        loop {
+            name_buf.clear();
+            loop {
+                map_err!(OpenEXR reader.read_exact(&mut buf1));
+                let byte = buf1[0];
+                if byte == 0 {
+                    break;
+                }
+                name_buf.push(byte);
+            }
+
+            if name_buf.is_empty() {
+                break;
+            }
+
+            type_buf.clear();
+            loop {
+                map_err!(OpenEXR reader.read_exact(&mut buf1));
+                let byte = buf1[0];
+                if byte == 0 {
+                    break;
+                }
+                type_buf.push(byte);
+            }
+
+            map_err!(OpenEXR reader.read_exact(&mut buf4));
+            let size = u32::from_le_bytes(buf4);
+
+            if &name_buf == b"displayWindow" {
+                if &type_buf != b"box2i" || size != 16 {
+                    return Err(ImError::ParserError(ImFormat::OpenEXR));
+                }
+
+                let mut box_buf = [0u8; 16];
+                map_err!(OpenEXR reader.read_exact(&mut box_buf));
+
+                let x1 = i32::from_le_bytes(get_array(&box_buf,       ImFormat::OpenEXR)?) as i64;
+                let y1 = i32::from_le_bytes(get_array(&box_buf[ 4..], ImFormat::OpenEXR)?) as i64;
+                let x2 = i32::from_le_bytes(get_array(&box_buf[ 8..], ImFormat::OpenEXR)?) as i64;
+                let y2 = i32::from_le_bytes(get_array(&box_buf[12..], ImFormat::OpenEXR)?) as i64;
+
+                let width  = x2 - x1 + 1;
+                let height = y2 - y1 + 1;
+
+                if width <= 0 || height <= 0 {
+                    map_err!(OpenEXR reader.seek(SeekFrom::Current(size as i64)));
+                }
+
+                return Ok(ImInfo {
+                    format: ImFormat::OpenEXR,
+                    width:  width  as u64,
+                    height: height as u64,
+                });
+            } else {
+                map_err!(OpenEXR reader.seek(SeekFrom::Current(size as i64)));
+            }
+        }
+
+        return Err(ImError::ParserError(ImFormat::OpenEXR));
     }
     return Err(ImError::UnknownFormat);
 }
