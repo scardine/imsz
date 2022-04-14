@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
 
@@ -17,6 +16,8 @@ pub enum ImFormat {
     AVIF    = 10,
     TIFF    = 11,
     OpenEXR = 12,
+    PCX     = 13,
+    TGA     = 14,
 }
 
 impl ImFormat {
@@ -34,6 +35,8 @@ impl ImFormat {
             Self::AVIF    => "avif",
             Self::TIFF    => "tiff",
             Self::OpenEXR => "OpenEXR",
+            Self::PCX     => "pcx",
+            Self::TGA     => "tga",
         }
     }
 }
@@ -286,41 +289,16 @@ impl BinaryReader for BigEndianReader {
     }
 }
 
-#[inline]
-fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; LEN]> {
-    match slice[..LEN].try_into() {
-        Ok(array) => Ok(array),
-        Err(_) => Err(ImError::ParserError(format)),
-    }
+macro_rules! array2 {
+    ($data:expr, $offset:expr) => {
+        [ $data[$offset], $data[$offset + 1] ]
+    };
 }
 
-fn find_avif_chunk<R>(reader: &mut R, name: &[u8], chunk_size: u64) -> ImResult<u64>
-where R: Read, R: Seek {
-    let mut sub_chunk_size;
-    let mut buf = [0u8; 8];
-    let mut offset = 0;
-
-    loop {
-        if offset > chunk_size {
-            return Err(ImError::ParserError(ImFormat::AVIF));
-        }
-        if let Err(_) = reader.read_exact(&mut buf) {
-            return Err(ImError::ParserError(ImFormat::AVIF));
-        }
-        sub_chunk_size = u32::from_be_bytes(get_array(&buf, ImFormat::AVIF)?) as u64;
-        if sub_chunk_size < 8 {
-            return Err(ImError::ParserError(ImFormat::AVIF));
-        }
-        if buf.ends_with(name) {
-            break;
-        }
-        offset += sub_chunk_size;
-        if let Err(_) = reader.seek(SeekFrom::Current(sub_chunk_size as i64 - 8)) {
-            return Err(ImError::ParserError(ImFormat::AVIF));
-        }
-    }
-
-    return Ok(sub_chunk_size);
+macro_rules! array4 {
+    ($data:expr, $offset:expr) => {
+        [ $data[$offset], $data[$offset + 1], $data[$offset + 2], $data[$offset + 3] ]
+    };
 }
 
 macro_rules! map_err {
@@ -340,11 +318,50 @@ macro_rules! map_expr {
     };
 }
 
+/*
+#[inline]
+fn get_array<const LEN: usize>(slice: &[u8], format: ImFormat) -> ImResult<[u8; LEN]> {
+    match slice[..LEN].try_into() {
+        Ok(array) => Ok(array),
+        Err(_) => Err(ImError::ParserError(format)),
+    }
+}
+*/
+
+fn find_avif_chunk<R>(reader: &mut R, name: &[u8], chunk_size: u64) -> ImResult<u64>
+where R: Read, R: Seek {
+    let mut sub_chunk_size;
+    let mut buf = [0u8; 8];
+    let mut offset = 0;
+
+    loop {
+        if offset > chunk_size {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        if let Err(_) = reader.read_exact(&mut buf) {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        sub_chunk_size = u32::from_be_bytes(array4!(&buf, 0)) as u64;
+        if sub_chunk_size < 8 {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+        if buf.ends_with(name) {
+            break;
+        }
+        offset += sub_chunk_size;
+        if let Err(_) = reader.seek(SeekFrom::Current(sub_chunk_size as i64 - 8)) {
+            return Err(ImError::ParserError(ImFormat::AVIF));
+        }
+    }
+
+    return Ok(sub_chunk_size);
+}
+
 fn parse_tiff<BR, R>(file: &mut R, preamble: &[u8]) -> ImResult<ImInfo>
 where BR: BinaryReader, R: Read, R: Seek {
     let mut reader = BufReader::new(file);
 
-    let ifd_offset = BR::get_u32(get_array(&preamble[4..], ImFormat::TIFF)?);
+    let ifd_offset = BR::get_u32(array4!(preamble, 4));
     map_err!(TIFF reader.seek(SeekFrom::Start(ifd_offset as u64)));
 
     let ifd_entry_count = map_expr!(TIFF BR::read_u16(&mut reader)) as u32;
@@ -408,6 +425,15 @@ where BR: BinaryReader, R: Read, R: Seek {
 }
 
 #[inline]
+fn is_tga<R>(file: &mut R) -> std::io::Result<bool>
+where R: Read, R: Seek {
+    file.seek(SeekFrom::End(-18))?;
+    let mut buf = [0u8; 18];
+    file.read_exact(&mut buf)?;
+    return Ok(&buf == b"TRUEVISION-XFILE.\0");
+}
+
+#[inline]
 pub fn imsz(fname: impl AsRef<std::path::Path>) -> ImResult<ImInfo> {
     let mut file = File::open(fname)?;
     return imsz_from_reader(&mut file);
@@ -424,8 +450,8 @@ where R: Read, R: Seek {
         if size < 10 {
             return Err(ImError::ParserError(ImFormat::GIF));
         }
-        let w = u16::from_le_bytes(get_array(&preamble[6..], ImFormat::GIF)?);
-        let h = u16::from_le_bytes(get_array(&preamble[8..], ImFormat::GIF)?);
+        let w = u16::from_le_bytes(array2!(preamble, 6));
+        let h = u16::from_le_bytes(array2!(preamble, 8));
 
         return Ok(ImInfo {
             format: ImFormat::GIF,
@@ -440,11 +466,11 @@ where R: Read, R: Seek {
             if size < 24 {
                 return Err(ImError::ParserError(ImFormat::PNG));
             }
-            w = u32::from_be_bytes(get_array(&preamble[16..], ImFormat::PNG)?);
-            h = u32::from_be_bytes(get_array(&preamble[20..], ImFormat::PNG)?);
+            w = u32::from_be_bytes(array4!(preamble, 16));
+            h = u32::from_be_bytes(array4!(preamble, 20));
         } else {
-            w = u32::from_be_bytes(get_array(&preamble[ 8..], ImFormat::PNG)?);
-            h = u32::from_be_bytes(get_array(&preamble[12..], ImFormat::PNG)?);
+            w = u32::from_be_bytes(array4!(preamble,  8));
+            h = u32::from_be_bytes(array4!(preamble, 12));
         }
 
         return Ok(ImInfo {
@@ -457,10 +483,10 @@ where R: Read, R: Seek {
         if size < 22 {
             return Err(ImError::ParserError(ImFormat::BMP));
         }
-        let header_size = u32::from_le_bytes(get_array(&preamble[14..], ImFormat::BMP)?);
+        let header_size = u32::from_le_bytes(array4!(preamble, 14));
         if header_size == 12 {
-            let w = u16::from_le_bytes(get_array(&preamble[18..], ImFormat::BMP)?);
-            let h = u16::from_le_bytes(get_array(&preamble[20..], ImFormat::BMP)?);
+            let w = u16::from_le_bytes(array2!(preamble, 18));
+            let h = u16::from_le_bytes(array2!(preamble, 20));
 
             return Ok(ImInfo {
                 format: ImFormat::BMP,
@@ -471,8 +497,8 @@ where R: Read, R: Seek {
             if size < 24 {
                 return Err(ImError::ParserError(ImFormat::BMP));
             }
-            let w = i32::from_le_bytes(get_array(&preamble[18..], ImFormat::BMP)?);
-            let h = i32::from_le_bytes(get_array(&preamble[22..], ImFormat::BMP)?);
+            let w = i32::from_le_bytes(array4!(preamble, 18));
+            let h = i32::from_le_bytes(array4!(preamble, 22));
 
             return Ok(ImInfo {
                 format: ImFormat::BMP,
@@ -498,8 +524,8 @@ where R: Read, R: Seek {
             if buf1[0] >= 0xc0 && buf1[0] <= 0xc3 {
                 map_err!(JPEG reader.seek(SeekFrom::Current(3)));
                 map_err!(JPEG reader.read_exact(&mut buf4));
-                let h = u16::from_be_bytes([ buf4[0], buf4[1] ]);
-                let w = u16::from_be_bytes([ buf4[2], buf4[3] ]);
+                let h = u16::from_be_bytes(array2!(buf4, 0));
+                let w = u16::from_be_bytes(array2!(buf4, 2));
 
                 return Ok(ImInfo {
                     format: ImFormat::JPEG,
@@ -538,8 +564,8 @@ where R: Read, R: Seek {
             if b0 != 0x9d || b1 != 0x01 || b2 != 0x2a {
                 return Err(ImError::ParserError(ImFormat::WEBP));
             }
-            let w = u16::from_le_bytes(get_array(&preamble[26..], ImFormat::WEBP)?);
-            let h = u16::from_le_bytes(get_array(&preamble[28..], ImFormat::WEBP)?);
+            let w = u16::from_le_bytes(array2!(preamble, 26));
+            let h = u16::from_le_bytes(array2!(preamble, 28));
             return Ok(ImInfo {
                 format: ImFormat::WEBP,
                 width:  w as u64 & 0x3ffff,
@@ -565,7 +591,7 @@ where R: Read, R: Seek {
         return Err(ImError::ParserError(ImFormat::WEBP));
     } else if size >= 12 && &preamble[4..12] == b"ftypavif" {
         // AVIF
-        let ftype_size = u32::from_be_bytes(get_array(&preamble, ImFormat::AVIF)?);
+        let ftype_size = u32::from_be_bytes(array4!(preamble, 0));
         if ftype_size < 12 {
             return Err(ImError::ParserError(ImFormat::AVIF));
         }
@@ -589,11 +615,11 @@ where R: Read, R: Seek {
         let mut buf = [0u8; 12];
         map_err!(AVIF reader.read_exact(&mut buf));
 
-        let w = u32::from_be_bytes(get_array(&buf[4..], ImFormat::AVIF)?);
-        let h = u32::from_be_bytes(get_array(&buf[8..], ImFormat::AVIF)?);
+        let w = u32::from_be_bytes(array4!(buf, 4));
+        let h = u32::from_be_bytes(array4!(buf, 8));
 
         return Ok(ImInfo {
-            format: ImFormat::GIF,
+            format: ImFormat::AVIF,
             width:  w as u64,
             height: h as u64,
         });
@@ -608,8 +634,8 @@ where R: Read, R: Seek {
         }
     } else if size >= 14 && preamble.starts_with(b"qoif") {
         // QOI
-        let w = u32::from_be_bytes(get_array(&preamble[4..], ImFormat::QOI)?);
-        let h = u32::from_be_bytes(get_array(&preamble[8..], ImFormat::QOI)?);
+        let w = u32::from_be_bytes(array4!(preamble, 4));
+        let h = u32::from_be_bytes(array4!(preamble, 8));
 
         return Ok(ImInfo {
             format: ImFormat::QOI,
@@ -618,8 +644,8 @@ where R: Read, R: Seek {
         });
     } else if size >= 22 && preamble.starts_with(b"8BPS\0\x01\0\0\0\0\0\0") {
         // PSD
-        let h = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::PSD)?);
-        let w = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::PSD)?);
+        let h = u32::from_be_bytes(array4!(preamble, 14));
+        let w = u32::from_be_bytes(array4!(preamble, 18));
 
         return Ok(ImInfo {
             format: ImFormat::PSD,
@@ -628,8 +654,8 @@ where R: Read, R: Seek {
         });
     } else if size >= 22 && preamble.starts_with(b"gimp xcf ") && preamble[13] == 0 {
         // XCF
-        let w = u32::from_be_bytes(get_array(&preamble[14..], ImFormat::XCF)?);
-        let h = u32::from_be_bytes(get_array(&preamble[18..], ImFormat::XCF)?);
+        let w = u32::from_be_bytes(array4!(preamble, 14));
+        let h = u32::from_be_bytes(array4!(preamble, 18));
 
         return Ok(ImInfo {
             format: ImFormat::XCF,
@@ -638,7 +664,7 @@ where R: Read, R: Seek {
         });
     } else if size >= 6 && preamble.starts_with(b"\0\0\x01\0") {
         // ICO
-        let count = u16::from_le_bytes(get_array(&preamble[4..], ImFormat::ICO)?);
+        let count = u16::from_le_bytes(array2!(preamble, 4));
         map_err!(ICO file.seek(SeekFrom::Start(6)));
 
         let mut buf = [0u8; 16];
@@ -705,16 +731,16 @@ where R: Read, R: Seek {
                 let mut box_buf = [0u8; 16];
                 map_err!(OpenEXR reader.read_exact(&mut box_buf));
 
-                let x1 = i32::from_le_bytes(get_array(&box_buf,       ImFormat::OpenEXR)?) as i64;
-                let y1 = i32::from_le_bytes(get_array(&box_buf[ 4..], ImFormat::OpenEXR)?) as i64;
-                let x2 = i32::from_le_bytes(get_array(&box_buf[ 8..], ImFormat::OpenEXR)?) as i64;
-                let y2 = i32::from_le_bytes(get_array(&box_buf[12..], ImFormat::OpenEXR)?) as i64;
+                let x1 = i32::from_le_bytes(array4!(box_buf, 0)) as i64;
+                let y1 = i32::from_le_bytes(array4!(box_buf, 4)) as i64;
+                let x2 = i32::from_le_bytes(array4!(box_buf, 8)) as i64;
+                let y2 = i32::from_le_bytes(array4!(box_buf, 2)) as i64;
 
                 let width  = x2 - x1 + 1;
                 let height = y2 - y1 + 1;
 
                 if width <= 0 || height <= 0 {
-                    map_err!(OpenEXR reader.seek(SeekFrom::Current(size as i64)));
+                    return Err(ImError::ParserError(ImFormat::OpenEXR));
                 }
 
                 return Ok(ImInfo {
@@ -728,6 +754,35 @@ where R: Read, R: Seek {
         }
 
         return Err(ImError::ParserError(ImFormat::OpenEXR));
+    } else if size >= 30 && preamble[0] == 0x0A && preamble[1] < 6 && (preamble[3] == 1 || preamble[3] == 2 || preamble[3] == 4 || preamble[3] == 8) {
+        // PCX
+        let x1 = u16::from_le_bytes(array2!(preamble,  4)) as i64;
+        let y1 = u16::from_le_bytes(array2!(preamble,  6)) as i64;
+        let x2 = u16::from_le_bytes(array2!(preamble,  8)) as i64;
+        let y2 = u16::from_le_bytes(array2!(preamble, 10)) as i64;
+
+        let width  = x2 - x1 + 1;
+        let height = y2 - y1 + 1;
+
+        if width <= 0 || height <= 0 {
+            return Err(ImError::ParserError(ImFormat::PCX));
+        }
+
+        return Ok(ImInfo {
+            format: ImFormat::PCX,
+            width:  width  as u64,
+            height: height as u64,
+        });
+    } else if size >= 30 && preamble[1] < 2 && preamble[2] < 12 && is_tga(file)? {
+        // TGA
+        let w = u16::from_le_bytes(array2!(preamble, 12));
+        let h = u16::from_le_bytes(array2!(preamble, 14));
+
+        return Ok(ImInfo {
+            format: ImFormat::TGA,
+            width:  w as u64,
+            height: h as u64,
+        });
     }
     return Err(ImError::UnknownFormat);
 }

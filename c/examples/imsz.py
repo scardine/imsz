@@ -34,6 +34,8 @@ class ImFormat(Enum):
     AVIF    = 10
     TIFF    = 11
     OpenEXR = 12
+    PCX     = 13
+    TGA     = 14
 
 class ImInfo(NamedTuple):
     format: ImFormat

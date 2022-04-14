@@ -64,10 +64,12 @@ let info = imsz_from_reader(&mut file)?;
 * GIF
 * ICO
 * JPEG
+* PCX
 * PNG
 * PSD
 * OpenEXR
 * QOI
+* TGA
 * TIFF
 * WEBP
 * XCF

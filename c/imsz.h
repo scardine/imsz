@@ -54,7 +54,7 @@ typedef struct ImInfo {
 
 IMSZ_EXPORT int imsz(const char *fname, ImInfo *info_ptr);
 
-#define IMSZ_FORMAT_NAMES (char*[]){ "(unknown)", "gif", "png", "bmp", "jpeg", "webp", "qoi", "psd", "xcf", "ico", "avif", "tiff", "OpenEXR" }
+#define IMSZ_FORMAT_NAMES (char*[]){ "(unknown)", "gif", "png", "bmp", "jpeg", "webp", "qoi", "psd", "xcf", "ico", "avif", "tiff", "OpenEXR", "pcx", "tga" }
 #define imsz_format_name(format) ((format) <= 0 || (format) >= sizeof(IMSZ_FORMAT_NAMES) / sizeof(char*) ? (IMSZ_FORMAT_NAMES)[0] : (IMSZ_FORMAT_NAMES)[(format)])
 
 #ifdef __cpluspluc
