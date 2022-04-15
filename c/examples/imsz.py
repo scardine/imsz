@@ -37,6 +37,7 @@ class ImFormat(Enum):
     PCX     = 13
     TGA     = 14
     DDS     = 15
+    HEIC    = 16
 
 class ImInfo(NamedTuple):
     format: ImFormat

@@ -19,6 +19,7 @@ pub enum ImFormat {
     PCX     = 13,
     TGA     = 14,
     DDS     = 15,
+    HEIC    = 16,
 }
 
 impl ImFormat {
@@ -39,6 +40,7 @@ impl ImFormat {
             Self::PCX     => "pcx",
             Self::TGA     => "tga",
             Self::DDS     => "dds",
+            Self::HEIC    => "heic",
         }
     }
 }
@@ -304,10 +306,14 @@ macro_rules! array4 {
 }
 
 macro_rules! map_err {
-    ($fmt:ident $expr:expr) => {
+    ($fmt:expr, $expr:expr) => {
         if let Err(_) = $expr {
-            return Err(ImError::ParserError(ImFormat::$fmt));
+            return Err(ImError::ParserError($fmt));
         }
+    };
+
+    ($fmt:ident $expr:expr) => {
+        map_err!(ImFormat::$fmt, $expr);
     };
 }
 
@@ -581,37 +587,43 @@ where R: Read, R: Seek {
             });
         }
         return Err(ImError::ParserError(ImFormat::WEBP));
-    } else if size >= 12 && &preamble[4..12] == b"ftypavif" {
-        // AVIF
+    } else if size >= 12 && (&preamble[4..12] == b"ftypavif" || &preamble[4..12] == b"ftypheic") {
+        // AVIF and HEIC
+        let format = if &preamble[8..12] == b"avif" {
+            ImFormat::AVIF
+        } else {
+            ImFormat::HEIC
+        };
+
         let ftype_size = u32::from_be_bytes(array4!(preamble, 0));
         if ftype_size < 12 {
-            return Err(ImError::ParserError(ImFormat::AVIF));
+            return Err(ImError::ParserError(format));
         }
         let mut reader = BufReader::new(file);
-        map_err!(AVIF reader.seek(SeekFrom::Start(ftype_size as u64)));
+        map_err!(format, reader.seek(SeekFrom::Start(ftype_size as u64)));
 
         // chunk nesting: meta > iprp > ipco > ispe
         let chunk_size = find_avif_chunk(&mut reader, b"meta", u64::MAX)?;
         if chunk_size < 12 {
-            return Err(ImError::ParserError(ImFormat::AVIF));
+            return Err(ImError::ParserError(format));
         }
-        map_err!(AVIF reader.seek(SeekFrom::Current(4)));
+        map_err!(format, reader.seek(SeekFrom::Current(4)));
         let chunk_size = find_avif_chunk(&mut reader, b"iprp", chunk_size - 12)?;
         let chunk_size = find_avif_chunk(&mut reader, b"ipco", chunk_size - 8)?;
         let chunk_size = find_avif_chunk(&mut reader, b"ispe", chunk_size - 8)?;
 
         if chunk_size < 12 {
-            return Err(ImError::ParserError(ImFormat::AVIF));
+            return Err(ImError::ParserError(format));
         }
 
         let mut buf = [0u8; 12];
-        map_err!(AVIF reader.read_exact(&mut buf));
+        map_err!(format, reader.read_exact(&mut buf));
 
         let w = u32::from_be_bytes(array4!(buf, 4));
         let h = u32::from_be_bytes(array4!(buf, 8));
 
         return Ok(ImInfo {
-            format: ImFormat::AVIF,
+            format,
             width:  w as u64,
             height: h as u64,
         });

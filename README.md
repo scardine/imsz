@@ -63,6 +63,7 @@ let info = imsz_from_reader(&mut file)?;
 * BMP
 * DDS
 * GIF
+* HEIC/HEIF
 * ICO
 * JPEG
 * PCX
