@@ -2,6 +2,9 @@
 
 # imsz
 
+[![Test Status](https://img.shields.io/github/workflow/status/panzi/imsz/Tests)](https://github.com/panzi/imsz/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/panzi/imsz)](https://github.com/panzi/imsz/blob/main/LICENSE)
+
 Get width and height from an image file reading as few bytes as possible.
 
 ## Why?
