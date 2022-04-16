@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ImFormat {
     GIF     =  1,
     PNG     =  2,
@@ -736,10 +736,10 @@ where R: Read, R: Seek {
                 let mut box_buf = [0u8; 16];
                 map_err!(OpenEXR reader.read_exact(&mut box_buf));
 
-                let x1 = i32::from_le_bytes(array4!(box_buf, 0)) as i64;
-                let y1 = i32::from_le_bytes(array4!(box_buf, 4)) as i64;
-                let x2 = i32::from_le_bytes(array4!(box_buf, 8)) as i64;
-                let y2 = i32::from_le_bytes(array4!(box_buf, 2)) as i64;
+                let x1 = i32::from_le_bytes(array4!(box_buf,  0)) as i64;
+                let y1 = i32::from_le_bytes(array4!(box_buf,  4)) as i64;
+                let x2 = i32::from_le_bytes(array4!(box_buf,  8)) as i64;
+                let y2 = i32::from_le_bytes(array4!(box_buf, 12)) as i64;
 
                 let width  = x2 - x1 + 1;
                 let height = y2 - y1 + 1;
